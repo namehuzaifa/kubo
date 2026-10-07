@@ -14,6 +14,8 @@ import type { AppDatabase, AppRole } from "@/integrations/supabase/admin-schema"
 export type SessionUser = {
   userId: string;
   email: string | null;
+  /** Display name, set at sign-up and editable from the profile pages. */
+  name: string | null;
   roles: AppRole[];
   isStaff: boolean;
   isAdmin: boolean;
@@ -83,9 +85,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const { data: roleRows } = await db.from("user_roles").select("role").eq("user_id", userId);
 
   const roles = (roleRows ?? []).map((row) => row.role);
+  // The display name rides along in the token's user metadata, so reading it
+  // here costs no extra round trip.
+  const metadata = data.claims["user_metadata"] as { full_name?: unknown } | undefined;
+
   return {
     userId,
     email: typeof data.claims["email"] === "string" ? (data.claims["email"] as string) : null,
+    name: typeof metadata?.full_name === "string" ? metadata.full_name : null,
     roles,
     isStaff: roles.includes("admin") || roles.includes("staff"),
     isAdmin: roles.includes("admin"),

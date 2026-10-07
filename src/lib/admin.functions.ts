@@ -5,6 +5,7 @@ import { describeDbError } from "./db-error";
 import {
   DOCUMENT_TYPES,
   INQUIRY_STATUSES,
+  type AppRole,
   type DocumentType,
   type InquiryRow,
   type InquiryStatus,
@@ -28,6 +29,7 @@ function denied(error: unknown): string {
 export type AdminSession = {
   userId: string;
   email: string | null;
+  name: string | null;
   isStaff: boolean;
   isAdmin: boolean;
 };
@@ -41,6 +43,7 @@ export const getAdminSession = createServerFn({ method: "GET" }).handler(async (
     session: {
       userId: user.userId,
       email: user.email,
+      name: user.name,
       isStaff: user.isStaff,
       isAdmin: user.isAdmin,
     } satisfies AdminSession,
@@ -603,3 +606,157 @@ export const getDashboardStats = createServerFn({ method: "GET" }).handler(async
     error: null as string | null,
   };
 });
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  roles: AppRole[];
+  emailConfirmed: boolean;
+  lastSignInAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * Supabase's admin API lists accounts page by page and cannot filter, so the
+ * whole set is pulled once and searched here. That is comfortable at this
+ * business's scale, and the cap keeps it from ever becoming an unbounded read.
+ */
+const USER_SCAN_PAGE = 200;
+const USER_SCAN_CAP = 1000;
+
+const usersSchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).optional(),
+  perPage: z.number().int().min(1).max(100).optional(),
+});
+
+export const listUsers = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => usersSchema.parse(input ?? {}))
+  .handler(async ({ data }) => {
+    const { requireAdmin, adminDb } = await import("./auth.server");
+
+    try {
+      await requireAdmin();
+    } catch (error) {
+      return { rows: [] as AdminUserRow[], total: 0, error: denied(error) };
+    }
+
+    const db = adminDb();
+    const collected: Omit<AdminUserRow, "roles">[] = [];
+
+    for (let page = 1; collected.length < USER_SCAN_CAP; page += 1) {
+      const { data: batch, error } = await db.auth.admin.listUsers({
+        page,
+        perPage: USER_SCAN_PAGE,
+      });
+      if (error) return { rows: [] as AdminUserRow[], total: 0, error: error.message };
+
+      const users = batch?.users ?? [];
+      for (const user of users) {
+        const meta = user.user_metadata as { full_name?: unknown } | undefined;
+        collected.push({
+          id: user.id,
+          email: user.email ?? "",
+          name: typeof meta?.full_name === "string" ? meta.full_name : null,
+          emailConfirmed: Boolean(user.email_confirmed_at),
+          lastSignInAt: user.last_sign_in_at ?? null,
+          createdAt: user.created_at,
+        });
+      }
+      if (users.length < USER_SCAN_PAGE) break;
+    }
+
+    const { data: roleRows } = await db.from("user_roles").select("user_id, role");
+    const rolesByUser = new Map<string, AppRole[]>();
+    for (const row of roleRows ?? []) {
+      const list = rolesByUser.get(row.user_id) ?? [];
+      list.push(row.role);
+      rolesByUser.set(row.user_id, list);
+    }
+
+    const q = data.q?.toLowerCase();
+    const matched: AdminUserRow[] = collected
+      .map((user) => ({ ...user, roles: rolesByUser.get(user.id) ?? [] }))
+      .filter(
+        (user) =>
+          !q || user.email.toLowerCase().includes(q) || (user.name ?? "").toLowerCase().includes(q),
+      );
+
+    const perPage = data.perPage ?? 25;
+    const page = data.page ?? 1;
+    const start = (page - 1) * perPage;
+
+    return {
+      rows: matched.slice(start, start + perPage),
+      total: matched.length,
+      error: null as string | null,
+    };
+  });
+
+const updateUserSchema = z.object({
+  userId: z.string().uuid(),
+  name: z.string().trim().max(120).optional(),
+  email: z.string().trim().toLowerCase().email().optional(),
+});
+
+/** Edits another account's name and sign-in address. Admins only. */
+export const updateUserAccount = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => updateUserSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { requireAdmin, adminDb } = await import("./auth.server");
+
+    try {
+      await requireAdmin();
+    } catch (error) {
+      return { ok: false as const, error: denied(error) };
+    }
+
+    const db = adminDb();
+    const attrs: {
+      email?: string;
+      email_confirm?: boolean;
+      user_metadata?: Record<string, unknown>;
+    } = {};
+
+    if (data.email !== undefined) {
+      // An admin changing someone's address is a deliberate act, so it takes
+      // effect at once rather than waiting on a confirmation link that person
+      // may never receive.
+      attrs.email = data.email;
+      attrs.email_confirm = true;
+    }
+
+    if (data.name !== undefined) {
+      // Supabase replaces user_metadata wholesale, so anything already in there
+      // has to be carried over or it is lost.
+      const { data: existing } = await db.auth.admin.getUserById(data.userId);
+      attrs.user_metadata = {
+        ...(existing?.user?.user_metadata ?? {}),
+        full_name: data.name,
+      };
+    }
+
+    if (Object.keys(attrs).length === 0) return { ok: true as const, error: null as string | null };
+
+    const { error } = await db.auth.admin.updateUserById(data.userId, attrs);
+    if (error) return { ok: false as const, error: error.message };
+
+    // The customers row keeps its own copy of both. A stale address there would
+    // collide with the unique index the next time anything touched it.
+    const patch: { email?: string; name?: string } = {};
+    if (data.email !== undefined) patch.email = data.email;
+    if (data.name !== undefined) patch.name = data.name;
+
+    const { error: customerError } = await db
+      .from("customers")
+      .update(patch as never)
+      .eq("auth_user_id", data.userId);
+    if (customerError) return { ok: false as const, error: describeDbError(customerError) };
+
+    return { ok: true as const, error: null as string | null };
+  });

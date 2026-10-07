@@ -27,7 +27,9 @@ import { Route as AccountProfileRouteImport } from './routes/account/profile'
 import { Route as AccountSavedRouteImport } from './routes/account/saved'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminContentRouteImport } from './routes/admin/content'
+import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as CarsStockIdRouteImport } from './routes/cars.$stockId'
 import { Route as AccountInquiriesIndexRouteImport } from './routes/account/inquiries/index'
 import { Route as AccountInquiriesIdRouteImport } from './routes/account/inquiries/$id'
@@ -128,9 +130,19 @@ const AdminContentRoute = AdminContentRouteImport.update({
   path: '/content',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminProfileRoute = AdminProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
   id: '/taxonomy',
   path: '/taxonomy',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const CarsStockIdRoute = CarsStockIdRouteImport.update({
@@ -196,7 +208,9 @@ export interface FileRoutesByFullPath {
   '/account/profile': typeof AccountProfileRoute
   '/account/saved': typeof AccountSavedRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin/users': typeof AdminUsersRoute
   '/cars/$stockId': typeof CarsStockIdRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
@@ -224,7 +238,9 @@ export interface FileRoutesByTo {
   '/account/profile': typeof AccountProfileRoute
   '/account/saved': typeof AccountSavedRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin/users': typeof AdminUsersRoute
   '/cars/$stockId': typeof CarsStockIdRoute
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
@@ -255,7 +271,9 @@ export interface FileRoutesById {
   '/account/profile': typeof AccountProfileRoute
   '/account/saved': typeof AccountSavedRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin/users': typeof AdminUsersRoute
   '/cars/$stockId': typeof CarsStockIdRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
@@ -287,7 +305,9 @@ export interface FileRouteTypes {
     | '/account/profile'
     | '/account/saved'
     | '/admin/content'
+    | '/admin/profile'
     | '/admin/taxonomy'
+    | '/admin/users'
     | '/cars/$stockId'
     | '/account/'
     | '/admin/'
@@ -315,7 +335,9 @@ export interface FileRouteTypes {
     | '/account/profile'
     | '/account/saved'
     | '/admin/content'
+    | '/admin/profile'
     | '/admin/taxonomy'
+    | '/admin/users'
     | '/cars/$stockId'
     | '/account'
     | '/admin'
@@ -345,7 +367,9 @@ export interface FileRouteTypes {
     | '/account/profile'
     | '/account/saved'
     | '/admin/content'
+    | '/admin/profile'
     | '/admin/taxonomy'
+    | '/admin/users'
     | '/cars/$stockId'
     | '/account/'
     | '/admin/'
@@ -506,11 +530,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContentRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/profile': {
+      id: '/admin/profile'
+      path: '/profile'
+      fullPath: '/admin/profile'
+      preLoaderRoute: typeof AdminProfileRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/taxonomy': {
       id: '/admin/taxonomy'
       path: '/taxonomy'
       fullPath: '/admin/taxonomy'
       preLoaderRoute: typeof AdminTaxonomyRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/cars/$stockId': {
@@ -601,7 +639,9 @@ const AccountRouteRouteWithChildren = AccountRouteRoute._addFileChildren(
 
 interface AdminRouteRouteChildren {
   AdminContentRoute: typeof AdminContentRoute
+  AdminProfileRoute: typeof AdminProfileRoute
   AdminTaxonomyRoute: typeof AdminTaxonomyRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminInquiriesIdRoute: typeof AdminInquiriesIdRoute
   AdminVehiclesIdRoute: typeof AdminVehiclesIdRoute
@@ -611,7 +651,9 @@ interface AdminRouteRouteChildren {
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminContentRoute: AdminContentRoute,
+  AdminProfileRoute: AdminProfileRoute,
   AdminTaxonomyRoute: AdminTaxonomyRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminInquiriesIdRoute: AdminInquiriesIdRoute,
   AdminVehiclesIdRoute: AdminVehiclesIdRoute,

@@ -1,7 +1,17 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Car, ExternalLink, FileText, Inbox, LayoutDashboard, LogOut, Tags } from "lucide-react";
+import {
+  Car,
+  ExternalLink,
+  FileText,
+  Inbox,
+  LayoutDashboard,
+  LogOut,
+  Tags,
+  UserRound,
+  Users,
+} from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminSession } from "@/hooks/use-admin-session";
@@ -23,12 +33,16 @@ export const Route = createFileRoute("/admin")({
 });
 
 const NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/admin/inquiries", label: "Inquiries", icon: Inbox, exact: false },
-  { to: "/admin/vehicles", label: "Listings", icon: Car, exact: false },
-  { to: "/admin/taxonomy", label: "Browse Lists", icon: Tags, exact: false },
-  { to: "/admin/content", label: "Content", icon: FileText, exact: false },
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true, adminOnly: false },
+  { to: "/admin/inquiries", label: "Inquiries", icon: Inbox, exact: false, adminOnly: false },
+  { to: "/admin/vehicles", label: "Listings", icon: Car, exact: false, adminOnly: false },
+  { to: "/admin/taxonomy", label: "Browse Lists", icon: Tags, exact: false, adminOnly: false },
+  { to: "/admin/content", label: "Content", icon: FileText, exact: false, adminOnly: false },
+  { to: "/admin/users", label: "Users", icon: Users, exact: false, adminOnly: true },
 ] as const;
+
+/** Reached from the account block at the foot of the sidebar, not the nav. */
+const PROFILE = { to: "/admin/profile", label: "Profile", icon: UserRound, exact: false } as const;
 
 function AdminLayout() {
   const { loading, session } = useAdminSession();
@@ -72,7 +86,8 @@ function AdminLayout() {
 
   const brandName = settings?.contact.name ?? "Kubo Trading";
   const logoUrl = settings?.contact.logo_url ?? "";
-  const current = NAV.find((item) =>
+  const nav = NAV.filter((item) => !item.adminOnly || session.isAdmin);
+  const current = [...nav, PROFILE].find((item) =>
     item.exact ? pathname === item.to : pathname.startsWith(item.to),
   );
 
@@ -103,7 +118,7 @@ function AdminLayout() {
         </Link>
 
         <nav className="flex-1 space-y-1 p-3">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
             return (
               <Link
@@ -124,17 +139,28 @@ function AdminLayout() {
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+          <Link
+            to={PROFILE.to}
+            title="Your profile"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
+              pathname.startsWith(PROFILE.to)
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "hover:bg-sidebar-accent/60",
+            )}
+          >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold uppercase">
-              {session.email?.slice(0, 1) ?? "?"}
+              {(session.name ?? session.email)?.slice(0, 1) ?? "?"}
             </span>
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-medium">{session.email}</span>
+              <span className="block truncate text-sm font-medium">
+                {session.name ?? session.email}
+              </span>
               <span className="block text-xs text-sidebar-foreground/60">
                 {session.isAdmin ? "Administrator" : "Staff"}
               </span>
             </span>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={async () => {
@@ -152,7 +178,7 @@ function AdminLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-1 md:hidden">
-            {NAV.map((item) => {
+            {nav.map((item) => {
               const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
               return (
                 <Link
